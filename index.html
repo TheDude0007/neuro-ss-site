@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Neuro Sampler Suite: an interactive 3D analysis of the open-source AI slice sampler and how it compares with the Akai MPC Key 37. Developed Independently By Collin Garchar.">
+<meta name="author" content="Collin Garchar">
+<title>Neuro Sampler Suite</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one psychedelic machine-room. A live WebGL "machine" hero with a Kaoss-style FX pad that processes the render,
+   then a 3D feature carousel, the signal chain, a radar duel vs the MPC Key 37, and an honest verdict. Single dark world by choice. */
+:root {
+  --void: #07050e;
+  --deck: #110c1f;
+  --deck2: #1a1230;
+  --ink: #efeaff;
+  --dim: #a99fc8;
+  --mag: #ff3fd0;
+  --cyan: #3ff3ff;
+  --amber: #ffb547;
+  --line: #2c2247;
+  --win: #5dffa8;
+  --loss: #ff6b81;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Manrope", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box }
+html, body { background: var(--void); color: var(--ink) }
+body { font-family: var(--body); font-size: 16px; line-height: 1.6; overflow-x: hidden }
+a { color: var(--cyan) }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.08; margin: 0 }
+h2 { font-size: clamp(1.6rem, 4.2vw, 2.7rem); font-weight: 900; letter-spacing: -0.01em }
+h3 { font-size: 1.05rem; font-weight: 700 }
+p { margin: 0 }
+.eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .22em; text-transform: uppercase; color: var(--cyan) }
+.lede { color: var(--dim); max-width: 64ch; font-size: 1.05rem }
+section { padding-block: clamp(56px, 9vw, 104px) }
+.iri { background: linear-gradient(100deg, var(--mag), var(--cyan) 45%, var(--amber) 90%); -webkit-background-clip: text; background-clip: text; color: transparent; background-size: 200% 100%; animation: shift 9s linear infinite }
+@keyframes shift { to { background-position: -200% 0 } }
+
+/* HERO */
+.hero { position: relative; height: clamp(520px, 82vh, 820px); overflow: hidden; border-bottom: 1px solid var(--line) }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab }
+#gl:active { cursor: grabbing }
+.hero-copy { position: absolute; left: 0; right: 0; top: clamp(28px, 6vh, 64px); pointer-events: none }
+.hero h1 { font-size: clamp(2.1rem, 7.4vw, 5.6rem); font-weight: 900; letter-spacing: -0.02em; text-shadow: 0 0 40px rgba(255,63,208,.35) }
+.hero .sub { margin-top: 14px; font-size: clamp(1rem, 2vw, 1.25rem); max-width: 46ch; color: var(--ink); text-shadow: 0 2px 18px var(--void) }
+.hint { margin-top: 10px; font-family: var(--mono); font-size: .74rem; color: var(--dim) }
+.fxdock { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 20px; display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; justify-content: flex-end }
+.xy { width: 156px; height: 156px; border-radius: 14px; border: 1px solid rgba(63,243,255,.45); background:
+  radial-gradient(circle at var(--px,50%) var(--py,100%), rgba(255,63,208,.55), transparent 42%),
+  repeating-linear-gradient(0deg, transparent 0 38px, rgba(63,243,255,.12) 38px 39px),
+  repeating-linear-gradient(90deg, transparent 0 38px, rgba(63,243,255,.12) 38px 39px), rgba(17,12,31,.78);
+  backdrop-filter: blur(8px); position: relative; touch-action: none; cursor: crosshair }
+.xy span { position: absolute; font-family: var(--mono); font-size: .62rem; color: var(--dim); letter-spacing: .12em }
+.xy .tl { top: 6px; left: 8px } .xy .br { bottom: 6px; right: 8px }
+.fxbtns { display: flex; flex-direction: column; gap: 6px }
+.chip { font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: rgba(17,12,31,.82); color: var(--ink); cursor: pointer }
+.chip[aria-pressed="true"] { border-color: var(--mag); box-shadow: 0 0 18px rgba(255,63,208,.45); color: #fff }
+.chip:focus-visible, button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px }
+.readout { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: 20px; font-family: var(--mono); font-size: .72rem; color: var(--dim); line-height: 1.7; pointer-events: none }
+.readout b { color: var(--cyan); font-weight: 600 }
+
+/* STATS */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; margin-top: 36px }
+.stat { background: var(--deck); padding: 20px 18px }
+.stat b { display: block; font-family: var(--display); font-size: clamp(1.5rem, 3.4vw, 2.2rem); font-variant-numeric: tabular-nums }
+.stat span { color: var(--dim); font-size: .86rem }
+
+/* CAROUSEL */
+.stage { perspective: 1400px; height: 400px; position: relative; margin-top: 36px; touch-action: pan-y; user-select: none }
+.ring { position: absolute; left: 50%; top: 20px; width: 0; height: 0; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2,.8,.2,1) }
+.card { position: absolute; width: 240px; height: 320px; left: -120px; top: 0; padding: 22px 20px; border-radius: 18px; background: linear-gradient(160deg, rgba(40,26,72,.94), rgba(14,10,26,.96)); border: 1px solid var(--line); backface-visibility: hidden; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: border-color .3s, box-shadow .3s }
+.card.on { border-color: var(--mag); box-shadow: 0 0 46px rgba(255,63,208,.35), inset 0 0 30px rgba(63,243,255,.08) }
+.card .k { font-family: var(--mono); font-size: .68rem; color: var(--amber); letter-spacing: .14em; text-transform: uppercase }
+.card h3 { font-size: 1.12rem }
+.card p { color: var(--dim); font-size: .9rem; line-height: 1.5 }
+.card .glyph { margin-top: auto; height: 46px }
+.ctrls { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 8px; flex-wrap: wrap }
+.detail { margin-top: 26px; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 28px; background: var(--deck); border: 1px solid var(--line); border-radius: 18px; padding: clamp(18px, 3vw, 32px) }
+.detail h3 { font-size: 1.4rem; margin-bottom: 10px }
+.detail ul { margin: 12px 0 0; padding-left: 18px; color: var(--ink) }
+.detail li { margin-bottom: 6px }
+.why { border-left: 2px solid var(--mag); padding-left: 16px; color: var(--dim) }
+.why b { color: var(--ink); display: block; font-family: var(--mono); font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 6px }
+
+/* CHAIN */
+.chain { margin-top: 36px; overflow-x: auto; padding-bottom: 6px }
+.chain svg { min-width: 860px; width: 100%; height: auto; display: block }
+.flow { stroke-dasharray: 6 10; animation: flow 1.2s linear infinite }
+@keyframes flow { to { stroke-dashoffset: -32 } }
+
+/* DUEL */
+.duel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 32px; margin-top: 36px; align-items: start }
+.radar { background: var(--deck); border: 1px solid var(--line); border-radius: 18px; padding: 12px }
+.radar svg { width: 100%; height: auto; display: block }
+.legend { display: flex; gap: 18px; justify-content: center; font-family: var(--mono); font-size: .75rem; padding-bottom: 8px; flex-wrap: wrap }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--deck) }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: .9rem }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font-family: var(--mono); font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); font-weight: 400 }
+tr:last-child td { border-bottom: 0 }
+td:first-child { font-weight: 700; white-space: nowrap }
+.pill { display: inline-block; font-family: var(--mono); font-size: .66rem; letter-spacing: .1em; padding: 3px 8px; border-radius: 999px; margin-top: 6px; text-transform: uppercase }
+.p-nss { background: rgba(255,63,208,.16); color: var(--mag); border: 1px solid rgba(255,63,208,.5) }
+.p-mpc { background: rgba(255,181,71,.14); color: var(--amber); border: 1px solid rgba(255,181,71,.5) }
+.p-tie { background: rgba(169,159,200,.12); color: var(--dim); border: 1px solid var(--line) }
+
+/* VERDICT */
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 36px }
+.lvl { background: var(--deck); border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px }
+.lvl .n { font-family: var(--display); font-size: 2.2rem; font-weight: 900; color: transparent; -webkit-text-stroke: 1px var(--cyan) }
+.lvl p { color: var(--dim); font-size: .93rem }
+.verdict { margin-top: 44px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px }
+.vbox { border-radius: 18px; padding: 24px; border: 1px solid var(--line); background: var(--deck2) }
+.vbox.nss { border-color: rgba(255,63,208,.55); box-shadow: 0 0 40px rgba(255,63,208,.12) }
+.vbox h3 { margin-bottom: 12px }
+.vbox ul { margin: 0; padding-left: 18px; color: var(--dim) }
+.vbox li { margin-bottom: 7px }
+.vbox li b { color: var(--ink) }
+.pair { margin-top: 18px; padding: 26px; border-radius: 18px; background: linear-gradient(110deg, rgba(255,63,208,.14), rgba(63,243,255,.10), rgba(255,181,71,.12)); border: 1px solid var(--line) }
+.pair p { max-width: 70ch }
+footer { padding-block: 40px 60px; color: var(--dim); font-size: .82rem; border-top: 1px solid var(--line) }
+footer p + p { margin-top: 8px }
+
+@media (max-width: 780px) {
+  .duel, .detail, .verdict { grid-template-columns: minmax(0, 1fr) }
+  .xy { width: 124px; height: 124px }
+  .readout { display: none }
+  .stage { height: 380px }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iri, .flow { animation: none }
+  .ring { transition: none }
+}
+</style>
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<header class="hero" id="top">
+  <canvas id="gl" aria-label="Interactive 3D model of the Neuro Sampler Suite: 16 pads, a waveform ribbon, four stem rings and a neural particle field"></canvas>
+  <div class="hero-copy wrap">
+    <p class="eyebrow">Open-source instrument · v1.13.0 · by Collin Garchar</p>
+    <h1><span class="iri">NEURO<br>SAMPLER SUITE</span></h1>
+    <p class="sub">A sampler that listens, splits, sorts and harmonises. An MPC-style workflow with a neural brain bolted to its pads.</p>
+    <p class="hint" style="color:var(--amber);letter-spacing:.14em">DEVELOPED INDEPENDENTLY BY COLLIN GARCHAR</p>
+    <p class="hint">Drag to orbit · tap a pad to hear it · play the FX pad below →</p>
+  </div>
+  <div class="readout" aria-live="polite">
+    <div>ENGINE <b id="roEng">NEURAL</b></div>
+    <div>X CHARACTER <b id="roX">0.50</b> · Y AMOUNT <b id="roY">0.00</b></div>
+    <div>STEP <b id="roStep">01</b> / 16 · 94 BPM</div>
+  </div>
+  <div class="fxdock">
+    <div class="fxbtns" role="group" aria-label="Screen effect">
+      <button class="chip" data-fx="0" aria-pressed="true">PRISM</button>
+      <button class="chip" data-fx="1" aria-pressed="false">KALEIDO</button>
+      <button class="chip" data-fx="2" aria-pressed="false">DATAMOSH</button>
+      <button class="chip" id="audioBtn" aria-pressed="false">SOUND OFF</button>
+    </div>
+    <div class="xy" id="xy" role="slider" tabindex="0" aria-label="Kaoss-style effect pad. X is character, Y is amount. Arrow keys move it." aria-valuetext="X 0.50, Y 0.00">
+      <span class="tl">AMOUNT ↑</span><span class="br">CHARACTER →</span>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="wrap" id="numbers">
+  <p class="eyebrow">Measured, not promised</p>
+  <h2 style="margin-top:10px">The numbers in its own test logs</h2>
+  <p class="lede" style="margin-top:14px">Every figure here comes from the project's README, docs and automated test suite. These are measurements of the shipping build, not marketing estimates.</p>
+  <div class="stats">
+    <div class="stat"><b>128</b><span>pads, banks A–H, every slice playable</span></div>
+    <div class="stat"><b>~340</b><span>automated checks, most asserting on rendered audio</span></div>
+    <div class="stat"><b>0.4%</b><span>of one Apple Silicon core, worst case measured</span></div>
+    <div class="stat"><b>51k</b><span>library files indexed in 2.7 s</span></div>
+    <div class="stat"><b>234</b><span>controls, every one MIDI-learnable (test-enforced)</span></div>
+    <div class="stat"><b>12</b><span>stereo outputs, one per drum class</span></div>
+    <div class="stat"><b>$0</b><span>AGPL-3.0, full source public</span></div>
+  </div>
+</section>
+
+<section id="features" style="background:linear-gradient(180deg, transparent, rgba(26,18,48,.6), transparent)">
+  <div class="wrap">
+    <p class="eyebrow">The machine, exploded</p>
+    <h2 style="margin-top:10px">Twelve systems in one instrument</h2>
+    <p class="lede" style="margin-top:14px">Spin the ring by dragging it, using the arrows, or by tapping a card. Each card opens what the feature does and why it matters.</p>
+    <div class="stage" id="stage">
+      <div class="ring" id="ring"></div>
+    </div>
+    <div class="ctrls">
+      <button class="chip" id="prev" aria-label="Previous feature">← PREV</button>
+      <span class="eyebrow" id="count" style="color:var(--dim)">01 / 12</span>
+      <button class="chip" id="next" aria-label="Next feature">NEXT →</button>
+    </div>
+    <div class="detail" id="detail" aria-live="polite"></div>
+  </div>
+</section>
+
+<section class="wrap" id="chain">
+  <p class="eyebrow">Signal chain</p>
+  <h2 style="margin-top:10px">From a finished song to a playable kit</h2>
+  <p class="lede" style="margin-top:14px">This is the path a full mix takes inside NSS. Each stage runs on the Mac itself, with no cloud upload and no subscription.</p>
+  <div class="chain">
+    <svg viewBox="0 0 1100 250" role="img" aria-label="Song to Demucs stems to NMF drum separation to timbre classes to pads, then to sequencer, chords and 12 outputs">
+      <defs>
+        <linearGradient id="gA" x1="0" x2="1"><stop offset="0" stop-color="#ff3fd0"/><stop offset=".5" stop-color="#3ff3ff"/><stop offset="1" stop-color="#ffb547"/></linearGradient>
+      </defs>
+      <g fill="none" stroke="url(#gA)" stroke-width="2.5">
+        <path class="flow" d="M140 125 H200"/><path class="flow" d="M340 125 H400"/><path class="flow" d="M540 125 H600"/><path class="flow" d="M740 125 H800"/>
+        <path class="flow" d="M940 125 C 970 125 960 55 990 55"/><path class="flow" d="M940 125 H990"/><path class="flow" d="M940 125 C 970 125 960 195 990 195"/>
+      </g>
+      <g font-family="JetBrains Mono, monospace" font-size="11" fill="#a99fc8" text-anchor="middle">
+        <rect x="10" y="80" width="130" height="90" rx="14" fill="#1a1230" stroke="#2c2247"/>
+        <text x="75" y="118" fill="#efeaff" font-family="Unbounded, sans-serif" font-size="14" font-weight="700">SONG</text><text x="75" y="140">any full mix</text>
+        <rect x="200" y="80" width="140" height="90" rx="14" fill="#1a1230" stroke="#ff3fd0"/>
+        <text x="270" y="112" fill="#efeaff" font-family="Unbounded, sans-serif" font-size="14" font-weight="700">DEMUCS</text><text x="270" y="134">drums · bass</text><text x="270" y="150">vocals · other</text>
+        <rect x="400" y="80" width="140" height="90" rx="14" fill="#1a1230" stroke="#3ff3ff"/>
+        <text x="470" y="112" fill="#efeaff" font-family="Unbounded, sans-serif" font-size="14" font-weight="700">NMF</text><text x="470" y="134">kick · snare</text><text x="470" y="150">cymbals · residual</text>
+        <rect x="600" y="80" width="140" height="90" rx="14" fill="#1a1230" stroke="#ffb547"/>
+        <text x="670" y="112" fill="#efeaff" font-family="Unbounded, sans-serif" font-size="14" font-weight="700">TIMBRE</text><text x="670" y="134">11 drum classes</text><text x="670" y="150">dark ↔ bright map</text>
+        <rect x="800" y="80" width="140" height="90" rx="14" fill="#1a1230" stroke="#ff3fd0"/>
+        <text x="870" y="112" fill="#efeaff" font-family="Unbounded, sans-serif" font-size="14" font-weight="700">PADS</text><text x="870" y="134">MPC order</text><text x="870" y="150">A1 kick, A2 snare…</text>
+        <rect x="990" y="30" width="104" height="50" rx="12" fill="#110c1f" stroke="#2c2247"/><text x="1042" y="60" fill="#efeaff">SEQUENCER</text>
+        <rect x="990" y="100" width="104" height="50" rx="12" fill="#110c1f" stroke="#2c2247"/><text x="1042" y="130" fill="#efeaff">CHORDS</text>
+        <rect x="990" y="170" width="104" height="50" rx="12" fill="#110c1f" stroke="#2c2247"/><text x="1042" y="200" fill="#efeaff">12 OUTPUTS</text>
+      </g>
+      <g font-family="JetBrains Mono, monospace" font-size="10" fill="#5dffa8" text-anchor="middle">
+        <text x="270" y="190">drums SDR 20.4 dB</text><text x="470" y="190">stems re-sum: 109 dB SNR</text><text x="670" y="190">11 / 11 synthetic</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<section id="duel" style="background:linear-gradient(180deg, transparent, rgba(26,18,48,.55), transparent)">
+  <div class="wrap">
+    <p class="eyebrow">Head to head</p>
+    <h2 style="margin-top:10px">Neuro Sampler Suite vs Akai MPC Key 37</h2>
+    <p class="lede" style="margin-top:14px">The MPC Key 37 is a standalone production keyboard: 37 synth-action keys with aftertouch, 16 velocity-sensitive pads, a touchscreen, 32 GB of storage and a $899 launch price. NSS is software that runs on a Mac with a controller such as the MPK mini mk2. The scores are 0–10, judged on the evidence in the table.</p>
+    <div class="duel">
+      <div class="radar">
+        <div class="legend"><span><i style="background:var(--mag)"></i>Neuro Sampler Suite</span><span><i style="background:var(--amber)"></i>MPC Key 37</span></div>
+        <svg id="radar" viewBox="0 0 520 470" role="img" aria-label="Radar chart comparing nine categories"></svg>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Category</th><th>Neuro Sampler Suite</th><th>MPC Key 37</th></tr></thead>
+          <tbody id="duelRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="level">
+  <p class="eyebrow">Why it sits a level above its class</p>
+  <h2 style="margin-top:10px">Five things few instruments in its class do</h2>
+  <p class="lede" style="margin-top:14px">Its class is MPC-style slice samplers you can play live. Most of them treat a sample as audio to cut. NSS treats it as music it can understand.</p>
+  <div class="levels" id="levels"></div>
+
+  <div class="verdict">
+    <div class="vbox nss">
+      <h3 class="iri">Where NSS is ahead</h3>
+      <ul>
+        <li><b>Understanding the audio.</b> Stems, drum separation, per-slice pitch, key and chord names. The MPC workflow gives you a sample. NSS gives you a sample it can describe.</li>
+        <li><b>Harmony.</b> Timbre chords, chord pads in the song key, next-chord suggestions and four melodic arp modes.</li>
+        <li><b>Scale.</b> 128 pads, 12 class outputs, a 51k-file library indexed in place, 234 learnable controls.</li>
+        <li><b>Openness.</b> Free, AGPL source, about 340 automated checks, and it runs in any DAW that hosts VST3 or AU. It's also designed to run inside MPC 3 software, though that is untested on MPC gear so far.</li>
+      </ul>
+    </div>
+    <div class="vbox">
+      <h3 style="color:var(--amber)">Where the MPC Key 37 is ahead</h3>
+      <ul>
+        <li><b>It's a finished instrument.</b> It works with no computer, and it has a real 37-key keybed with aftertouch and wheels.</li>
+        <li><b>Touchscreen and hands-on flow.</b> It was designed as one object, where NSS is software plus a controller.</li>
+        <li><b>Built-in sounds.</b> Synth engines and content ship in the box. NSS plays your own library.</li>
+        <li><b>Proven on stage.</b> NSS is in beta, and its hands-on sessions in Live, Logic and MPC 3 are still open.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="pair">
+    <p class="eyebrow" style="color:var(--amber)">The verdict</p>
+    <p style="margin-top:10px;font-size:1.1rem">On intelligence, NSS is superior: its sampler can split a song, sort the drums, name the chords and re-voice them, and the MPC Key 37 doesn't do all of that. On physical instrument design, the MPC Key 37 wins. They don't have to compete. NSS follows MIDI clock and is designed to run inside MPC 3 software, so the MPC can be the body and NSS the brain.</p>
+  </div>
+</section>
+</main>
+
+<footer class="wrap">
+  <p style="color:var(--ink);font-family:var(--display);font-size:.95rem;margin-bottom:14px">Developed Independently By Collin Garchar</p>
+  <p>Neuro Sampler Suite: open source (AGPL-3.0), macOS VST3 / AU / Standalone, built on JUCE 9. Figures come from the project's README, KIT.md, CHORDS.md, LIBRARY.md and its test suite at v1.13.0.</p>
+  <p>MPC Key 37 figures come from public launch coverage and retailer listings (37 keys with aftertouch, 16 pads, 32 GB, $899 launch). Akai and MPC are trademarks of inMusic Brands. This page is an independent comparison and isn't affiliated with Akai.</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------------- FEATURES ---------------- */
+const F = [
+  { k: 'AI · Demucs', t: 'Split stems', s: 'A full song becomes Drums, Bass, Vocals and Other, then Lows and Mids.',
+    d: 'Runs the htdemucs neural network inside the plugin (demucs.cpp, no Python). It writes 24-bit WAV stems, then splits Bass + Other at 200 Hz with a zero-phase filter so the layers re-sum exactly. After a split, the song key is read from the musical stems.',
+    pts: ['Drums SDR 20.4 dB in testing (input mix: −14.8 dB)', 'Model hash-pinned (SHA-256)', 'Runs on the Mac, no upload'],
+    why: 'Most standalone samplers chop what you give them. NSS takes the finished record apart first.' },
+  { k: 'DSP · NMF', t: 'Separate drums', s: 'A mixed drum loop becomes isolated kick, snare and cymbal stems.',
+    d: 'Semi-adaptive non-negative matrix factorisation (after Wu & Lerch, ISMIR 2015). Kick, snare and hat templates adapt to the loop but stay at least 70% anchored. Soft masks give stems that sum back to the original.',
+    pts: ['Stems re-sum at 109 dB SNR', 'Teach the kit: tag example hits as templates', 'Duncan loop snare detection: 31% → 100% after teaching'],
+    why: 'You can teach it your kit by example, which turns a research method into a playable control.' },
+  { k: 'Kit intelligence', t: 'Timbre map', s: 'Every slice is fingerprinted and placed on a dark-to-bright, tonal-to-noisy map.',
+    d: 'A spectral plus envelope fingerprint classifies each slice into 11 drum classes. Sequencer steps can target a timbre point instead of a pad, so a pattern re-orchestrates itself on any kit.',
+    pts: ['11 / 11 synthetic drums classified', 'Timbre-Addressed Sequencing', 'Per-slice class override'],
+    why: 'Patterns are stored as sounds, not pad numbers. Swap the kit and the groove still lands on the kick, snare and hat.' },
+  { k: 'Harmony', t: 'Timbre chords', s: 'Each note of a chord can come from a different slice.',
+    d: 'The CHORD tab harmonises pitched slices in the song key, turns pads into chords I–VII, and offers 7 shapes, 3 voicings, strum, and keep-length renders. Timbre chords build one chord from up to four different sounds.',
+    pts: ['7 shapes · Close / Drop 2 / Wide', 'Keep-length voice renders −7…+7', 'Drums are never retuned'],
+    why: 'A chord voiced across a vocal chop, a bass stab and a pad. That is sound design and harmony on one key press.' },
+  { k: 'Theory brain', t: 'What comes next', s: 'Next-chord suggestions and progressions by mood, sent to the sequencer.',
+    d: '110 MIT-licensed progressions ship in the box. Your own 7.6k-progression chord library is read at runtime and never uploaded. Chords can also go out as MIDI to drive other synths.',
+    pts: ['Next-chord suggestions', 'Mood → progression → SEQ', 'Chord MIDI out'],
+    why: 'The sampler suggests where the song can go, using your own library as its vocabulary.' },
+  { k: 'Pitch · key', t: 'Hears the key', s: 'YIN pitch, key and chord names per slice, with an honest confidence score.',
+    d: 'Chroma with overtone subtraction plus bgate key profiles. Key detection on labelled melodies rose from 3/7 to 5/7, and file-name keys are trusted when present (11/11). Play In moves every musical slice to a new key without changing length.',
+    pts: ['Uncertainty shown with runners-up', 'Song key from file names when present', 'Play In keeps the length'],
+    why: 'It tells you when it isn\'t sure, which is rarer and more useful than false confidence.' },
+  { k: 'Sequencing', t: 'Pattern genome', s: '16 patterns × 16 lanes with polymeter, trig conditions and mutation.',
+    d: 'Per-step velocity, gate, probability, ratchet, microtiming and pitch. Trig conditions (A:B, first, fill, previous), Pattern Genome recombination, seeded Mutation with A/B compare, and Phrase Weaving.',
+    pts: ['Deterministic, stateless timing', 'Undo per pattern', 'Host-locked or free-running'],
+    why: 'It evolves grooves, with seeded randomness, so a good accident can be recalled exactly.' },
+  { k: 'Performance', t: 'CHOP + Note Repeat', s: 'MPC-style chop modes plus Note Repeat from 1 bar to 1/128.',
+    d: 'Transient, grid, kit or manual chopping with magnetic snap, a crosshair and keyboard control. Note Repeat with gate glitch, swing, latch and an XY pad. 16 Levels and jog chop knobs on the MPK K5/K6.',
+    pts: ['1 bar … 1/128 incl. triplets', 'Jog chop on hardware knobs', '16 Levels'],
+    why: 'It\'s the MPC finger-drumming vocabulary, rebuilt and extended for a laptop rig.' },
+  { k: 'Generative arp', t: 'Arpeggio grammar', s: 'An arpeggiator with readable rules, phrase memory and melodic modes.',
+    d: '10 directions plus Scale run, Harmonic series, Tonnetz walk and Chord tones. A 16-step rhythm with accents, ratchets and Euclid. Note-offs land on exact samples, so loops never leave stuck notes.',
+    pts: ['Tonnetz-walk melodic mode', 'Phrase Memory, seeded variation', 'Gesture XY pad'],
+    why: 'Most arps cycle through notes. This one walks music-theory space.' },
+  { k: 'Library', t: 'Your packs, indexed', s: '51,407 files typed by name, searchable and auditionable, in 2.7 s.',
+    d: 'Folders are indexed in place, with no copying. 18 sample types plus BPM and key read from names (91% typed on the test library). Preview, load, and Auto kit builds a 16-pad MPC-order kit from one pack.',
+    pts: ['18 types, BPM, key', 'Auto kit (same pack)', 'Kit → pads'],
+    why: 'Your 53 GB of commercial packs become one searchable instrument, without import or duplication.' },
+  { k: 'Mix', t: '12 class outputs', s: 'Main plus one stereo output per drum class, straight into your DAW.',
+    d: 'In Logic Multi-Output or Live routing, the kick, snare and hats arrive on their own tracks. Verified through the real VST3 and AU APIs: each kit piece appeared only on its own output.',
+    pts: ['Level per class, automatable', 'Disabled outputs fall back to Main', 'VST3 + AU verified'],
+    why: 'Deconstruct a loop and each drum is already on its own mixer channel.' },
+  { k: 'Rig', t: 'GMNI link', s: 'Locks to MIDI clock and drives GW-1 and FLUX NEXUS over a virtual port.',
+    d: 'Follows Start / Continue / Stop / Song Position sample-accurately, or sends clock. Sequencer lanes can play a synth on any MIDI channel. Designed to run inside MPC 3 software or next to MPC hardware.',
+    pts: ['MIDI clock in / out', 'Virtual MIDI port', 'MPC 3 host sync (untested on MPC gear)'],
+    why: 'It doesn\'t need to replace an MPC. It can be the MPC\'s brain.' },
+];
+const ring = document.getElementById('ring'), detail = document.getElementById('detail'), count = document.getElementById('count');
+const N = F.length, R = 430, step = 360 / N;
+let idx = 0, rot = 0;
+const glyph = i => {
+  const c = ['#ff3fd0', '#3ff3ff', '#ffb547'][i % 3];
+  let p = '';
+  for (let x = 0; x <= 200; x += 4) p += (x ? 'L' : 'M') + x + ' ' + (23 + Math.sin(x * 0.06 + i) * 14 * Math.sin(x * 0.013 + i * 0.7)).toFixed(1);
+  return `<svg class="glyph" viewBox="0 0 200 46" preserveAspectRatio="none"><path d="${p}" fill="none" stroke="${c}" stroke-width="2"/></svg>`;
+};
+F.forEach((f, i) => {
+  const el = document.createElement('div');
+  el.className = 'card'; el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', f.t);
+  el.style.transform = `rotateY(${i * step}deg) translateZ(${R}px)`;
+  el.innerHTML = `<span class="k">${f.k}</span><h3>${f.t}</h3><p>${f.s}</p>${glyph(i)}`;
+  el.addEventListener('click', () => go(i));
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(i); } });
+  ring.appendChild(el);
+});
+function render() {
+  ring.style.transform = `translateZ(${-R}px) rotateY(${rot}deg)`;
+  [...ring.children].forEach((c, i) => c.classList.toggle('on', i === idx));
+  const f = F[idx];
+  count.textContent = String(idx + 1).padStart(2, '0') + ' / ' + N;
+  detail.innerHTML = `<div><p class="eyebrow">${f.k}</p><h3 style="margin-top:8px">${f.t}</h3><p>${f.d}</p><ul>${f.pts.map(p => `<li>${p}</li>`).join('')}</ul></div><div class="why"><b>Why it matters</b>${f.why}</div>`;
+}
+function go(i) {
+  const d = ((i - idx) % N + N) % N, back = d > N / 2;
+  rot -= (back ? d - N : d) * step; idx = i; render();
+}
+document.getElementById('prev').onclick = () => go((idx - 1 + N) % N);
+document.getElementById('next').onclick = () => go((idx + 1) % N);
+const stage = document.getElementById('stage');
+let sx = null;
+stage.addEventListener('pointerdown', e => { sx = e.clientX; });
+addEventListener('pointerup', e => { if (sx === null) return; const dx = e.clientX - sx; sx = null; if (Math.abs(dx) > 40) go((idx + (dx < 0 ? 1 : -1) + N) % N); });
+const fitRing = () => { const s = Math.min(1, stage.clientWidth / 760); ring.parentElement.style.setProperty('--s', s); ring.style.scale = Math.max(.62, s); };
+addEventListener('resize', fitRing); fitRing(); render();
+
+/* ---------------- DUEL ---------------- */
+const D = [
+  ['Song → stems', 10, 5, 'Demucs 4-source in the plugin, plus Lows/Mids layer', 'Depends on firmware and model; the onboard CPU sets the limits', 'nss'],
+  ['Drum intelligence', 10, 4, 'NMF separation, 11 classes, teach the kit, timbre sequencing', 'Manual chop and pad assignment', 'nss'],
+  ['Harmony & theory', 9, 6, 'Timbre chords, chord pads, next-chord brain, melodic arps', 'Scales and chord modes on the keys', 'nss'],
+  ['Sequencing depth', 8, 9, 'Trig conditions, genome, mutation; no song mode yet', 'Mature MPC sequencer with song mode', 'mpc'],
+  ['Sampling & chop', 9, 9, 'Transient / grid / kit chop, stretch, 128 pads', 'The MPC chop workflow it is modelled on', 'tie'],
+  ['Hands-on hardware', 4, 10, 'Laptop plus MPK mini (25 keys, 8 pads)', '37 keys with aftertouch, 16 pads, touchscreen', 'mpc'],
+  ['Standalone', 2, 9, 'Needs a Mac', 'Runs without a computer (mains power)', 'mpc'],
+  ['Sound content', 6, 9, 'Your library (51k files indexed)', 'Bundled synths and sound content', 'mpc'],
+  ['Price & openness', 10, 5, 'Free, AGPL source, 340 tests', '$899 at launch, closed', 'nss'],
+];
+const tb = document.getElementById('duelRows');
+D.forEach(r => {
+  const lab = r[5] === 'nss' ? '<span class="pill p-nss">NSS ahead</span>' : r[5] === 'mpc' ? '<span class="pill p-mpc">MPC ahead</span>' : '<span class="pill p-tie">even</span>';
+  tb.insertAdjacentHTML('beforeend', `<tr><td>${r[0]}<br>${lab}</td><td>${r[3]} <span style="color:var(--mag);font-family:var(--mono)">${r[1]}</span></td><td>${r[4]} <span style="color:var(--amber);font-family:var(--mono)">${r[2]}</span></td></tr>`);
+});
+const svg = document.getElementById('radar'), cx = 260, cy = 240, rr = 160, ns = 'http://www.w3.org/2000/svg';
+const pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / D.length; return [cx + Math.cos(a) * rr * v / 10, cy + Math.sin(a) * rr * v / 10]; };
+let s = '';
+[2, 4, 6, 8, 10].forEach(v => { s += `<polygon points="${D.map((_, i) => pt(i, v).join(',')).join(' ')}" fill="none" stroke="#2c2247"/>`; s += `<text x="${cx + 4}" y="${cy - rr * v / 10 + 4}" fill="#a99fc8" font-size="10" font-family="JetBrains Mono, monospace">${v}</text>`; });
+D.forEach((r, i) => {
+  const [x, y] = pt(i, 10), [lx, ly] = pt(i, 12.1);
+  s += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#2c2247"/>`;
+  const anc = Math.abs(lx - cx) < 12 ? 'middle' : lx > cx ? 'start' : 'end';
+  s += `<text x="${lx}" y="${ly + 4}" text-anchor="${anc}" fill="#efeaff" font-size="12" font-family="Manrope, sans-serif" font-weight="700">${r[0]}</text>`;
+});
+const poly = (k, col) => `<polygon class="rp" points="${D.map((r, i) => pt(i, r[k]).join(',')).join(' ')}" fill="${col}" fill-opacity=".18" stroke="${col}" stroke-width="2.5"/>` + D.map((r, i) => `<circle cx="${pt(i, r[k])[0]}" cy="${pt(i, r[k])[1]}" r="4" fill="${col}"/>`).join('');
+s += poly(2, '#ffb547') + poly(1, '#ff3fd0');
+svg.innerHTML = s;
+
+/* ---------------- LEVELS ---------------- */
+const L = [
+  ['It listens first', 'Pitch, key, chord, drum class and timbre for every slice, analysed in the background before you touch a pad.'],
+  ['It takes records apart', 'Neural stem separation and NMF drum separation, with stems that re-sum to the original at 109 dB SNR.'],
+  ['Sequences sounds, not slots', 'Timbre-addressed steps re-orchestrate a pattern on any kit. A pad number is just a place, and a timbre is what you mean.'],
+  ['Harmony across timbres', 'A single chord voiced across different samples, in the song key, with a theory brain proposing what comes next.'],
+  ['Proven by its own tests', 'About 340 automated checks assert on rendered audio: timing to the sample, levels, pitch and determinism. 0.4% CPU worst case.'],
+];
+document.getElementById('levels').innerHTML = L.map((l, i) => `<div class="lvl"><span class="n">${i + 1}</span><h3>${l[0]}</h3><p>${l[1]}</p></div>`).join('');
+
+/* ---------------- AUDIO ---------------- */
+let ac = null, master = null, fxFilter = null, delay = null, fb = null;
+const audioBtn = document.getElementById('audioBtn');
+function initAudio() {
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  master = ac.createGain(); master.gain.value = .55;
+  fxFilter = ac.createBiquadFilter(); fxFilter.type = 'lowpass'; fxFilter.frequency.value = 18000; fxFilter.Q.value = 6;
+  delay = ac.createDelay(1); delay.delayTime.value = 60 / 94 * .75; fb = ac.createGain(); fb.gain.value = 0;
+  fxFilter.connect(master); fxFilter.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(master); master.connect(ac.destination);
+}
+audioBtn.onclick = () => {
+  if (!ac) initAudio();
+  const on = audioBtn.getAttribute('aria-pressed') !== 'true';
+  audioBtn.setAttribute('aria-pressed', on); audioBtn.textContent = on ? 'SOUND ON' : 'SOUND OFF';
+  if (on) ac.resume(); else ac.suspend();
+};
+const soundOn = () => ac && audioBtn.getAttribute('aria-pressed') === 'true';
+const CHORD = [0, 3, 7, 10, 14];
+function hit(kind, t = ac.currentTime, v = 1) {
+  const g = ac.createGain(); g.connect(fxFilter);
+  if (kind === 0) { const o = ac.createOscillator(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + .18); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + .42); o.connect(g); o.start(t); o.stop(t + .45); }
+  else if (kind === 1 || kind === 2) {
+    const len = kind === 1 ? .22 : .06, b = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const n = ac.createBufferSource(); n.buffer = b; const f = ac.createBiquadFilter(); f.type = kind === 1 ? 'bandpass' : 'highpass'; f.frequency.value = kind === 1 ? 1800 : 7500;
+    g.gain.setValueAtTime(v * (kind === 1 ? .7 : .35), t); g.gain.exponentialRampToValueAtTime(.001, t + len); n.connect(f); f.connect(g); n.start(t);
+  } else {
+    const root = 110 * Math.pow(2, (kind - 3) / 12);
+    CHORD.forEach((s, k) => { const o = ac.createOscillator(); o.type = k % 2 ? 'triangle' : 'sawtooth'; o.frequency.value = root * Math.pow(2, s / 12) * 2; const og = ac.createGain(); og.gain.setValueAtTime(0, t + k * .018); og.gain.linearRampToValueAtTime(.06 * v, t + k * .018 + .02); og.gain.exponentialRampToValueAtTime(.001, t + .9); o.connect(og); og.connect(g); o.start(t); o.stop(t + 1); });
+    g.gain.value = 1;
+  }
+}
+const padKind = i => i === 0 || i === 8 ? 0 : i === 1 || i === 9 ? 1 : i === 2 || i === 3 || i === 10 ? 2 : 3 + ((i * 5) % 12);
+
+/* ---------------- WEBGL HERO ---------------- */
+const cv = document.getElementById('gl');
+let X = .5, Y = 0, fxMode = 0;
+const xy = document.getElementById('xy'), roX = document.getElementById('roX'), roY = document.getElementById('roY'), roStep = document.getElementById('roStep'), roEng = document.getElementById('roEng');
+function setXY(x, y) {
+  X = Math.min(1, Math.max(0, x)); Y = Math.min(1, Math.max(0, y));
+  xy.style.setProperty('--px', (X * 100) + '%'); xy.style.setProperty('--py', ((1 - Y) * 100) + '%');
+  roX.textContent = X.toFixed(2); roY.textContent = Y.toFixed(2); xy.setAttribute('aria-valuetext', `X ${X.toFixed(2)}, Y ${Y.toFixed(2)}`);
+  if (ac) { const t = ac.currentTime; fxFilter.frequency.setTargetAtTime(18000 * Math.pow(.02, Y * (1 - X * .6)), t, .03); fb.gain.setTargetAtTime(Y * X * .62, t, .05); }
+}
+let held = false;
+const xyMove = e => { const r = xy.getBoundingClientRect(); setXY((e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height); };
+xy.addEventListener('pointerdown', e => { held = true; xy.setPointerCapture(e.pointerId); xyMove(e); });
+xy.addEventListener('pointermove', e => { if (held) xyMove(e); });
+xy.addEventListener('pointerup', () => { held = false; });
+xy.addEventListener('keydown', e => { const d = .06; if (e.key === 'ArrowRight') setXY(X + d, Y); else if (e.key === 'ArrowLeft') setXY(X - d, Y); else if (e.key === 'ArrowUp') setXY(X, Y + d); else if (e.key === 'ArrowDown') setXY(X, Y - d); else return; e.preventDefault(); });
+document.querySelectorAll('[data-fx]').forEach(b => b.onclick = () => {
+  fxMode = +b.dataset.fx; document.querySelectorAll('[data-fx]').forEach(o => o.setAttribute('aria-pressed', o === b));
+  roEng.textContent = ['NEURAL', 'KALEIDO', 'MOSH'][fxMode]; if (Y < .25) setXY(X, .55);
+});
+setXY(.5, 0);
+
+if (!window.THREE) { cv.style.background = 'radial-gradient(circle at 60% 60%, #2a1030, #07050e 70%)'; return; }
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' }); }
+catch (e) { cv.style.background = 'radial-gradient(circle at 60% 60%, #2a1030, #07050e 70%)'; return; }
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x07050e, .045);
+const cam = new THREE.PerspectiveCamera(42, 1, .1, 100);
+const rig = new THREE.Group(); scene.add(rig);
+scene.add(new THREE.AmbientLight(0x6a4fa0, .55));
+const l1 = new THREE.PointLight(0xff3fd0, 2.2, 30); l1.position.set(-5, 6, 4); scene.add(l1);
+const l2 = new THREE.PointLight(0x3ff3ff, 1.8, 30); l2.position.set(6, 3, -3); scene.add(l2);
+
+// psychedelic backdrop shader
+const bgMat = new THREE.ShaderMaterial({
+  uniforms: { t: { value: 0 }, y: { value: 0 } }, depthWrite: false, side: THREE.BackSide,
+  vertexShader: 'varying vec3 p; void main(){ p = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+  fragmentShader: `varying vec3 p; uniform float t, y;
+  float h(vec2 q){ return fract(sin(dot(q, vec2(41.3, 289.1))) * 43758.5); }
+  float n(vec2 q){ vec2 i=floor(q), f=fract(q); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
+  void main(){ vec3 d = normalize(p); vec2 q = vec2(atan(d.z,d.x)*2., d.y*3.);
+    float f = 0.; vec2 w = q; for(int i=0;i<4;i++){ f += n(w + t*.07*float(i+1)) / float(i+1); w = w*2.03 + f; }
+    vec3 c = .5 + .5*cos(6.2831*(f*.9 + vec3(0.,.33,.67) + t*.03));
+    float band = smoothstep(.55,1.,f) * (.18 + .5*y);
+    gl_FragColor = vec4(mix(vec3(.027,.02,.055), c*.55, band), 1.); }`
+});
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(40, 48, 32), bgMat));
+
+// chassis + pads
+const body = new THREE.Mesh(new THREE.BoxGeometry(6.4, .36, 6.4), new THREE.MeshStandardMaterial({ color: 0x150f26, metalness: .7, roughness: .35 }));
+body.position.y = -.25; rig.add(body);
+const edge = new THREE.LineSegments(new THREE.EdgesGeometry(body.geometry), new THREE.LineBasicMaterial({ color: 0x3ff3ff, transparent: true, opacity: .55 }));
+edge.position.copy(body.position); rig.add(edge);
+const pads = [], padCols = [0xff3fd0, 0x3ff3ff, 0xffb547, 0xa05bff];
+for (let i = 0; i < 16; i++) {
+  const r = Math.floor(i / 4), c = i % 4, col = new THREE.Color(padCols[(r + c) % 4]);
+  const m = new THREE.MeshStandardMaterial({ color: 0x1d1636, emissive: col, emissiveIntensity: .12, metalness: .2, roughness: .5 });
+  const p = new THREE.Mesh(new THREE.BoxGeometry(1.18, .22, 1.18), m);
+  p.position.set((c - 1.5) * 1.42, 0, (r - 1.5) * 1.42); p.userData = { i, glow: 0, col }; rig.add(p); pads.push(p);
+}
+// waveform ribbon
+const WN = 220, wgeo = new THREE.BufferGeometry(), wpos = new Float32Array(WN * 3), wcol = new Float32Array(WN * 3);
+wgeo.setAttribute('position', new THREE.BufferAttribute(wpos, 3)); wgeo.setAttribute('color', new THREE.BufferAttribute(wcol, 3));
+const wave = new THREE.Line(wgeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: .95 }));
+wave.position.set(0, 1.9, -3.6); rig.add(wave);
+// stem rings
+const stemNames = ['DRUMS', 'BASS', 'VOCALS', 'OTHER'], rings = [];
+stemNames.forEach((s, i) => {
+  const tor = new THREE.Mesh(new THREE.TorusGeometry(4.6 + i * .42, .022, 8, 160), new THREE.MeshBasicMaterial({ color: padCols[i], transparent: true, opacity: .55 }));
+  tor.rotation.x = Math.PI / 2 + (i - 1.5) * .16; tor.position.y = .4; rig.add(tor); rings.push(tor);
+});
+// neural particle field
+const PN = reduce ? 500 : 1400, ppos = new Float32Array(PN * 3), pcol = new Float32Array(PN * 3), seeds = [];
+for (let i = 0; i < PN; i++) {
+  const u = Math.random() * Math.PI * 2, v = Math.acos(2 * Math.random() - 1), rad = 7 + Math.random() * 5;
+  seeds.push([u, v, rad, Math.random()]);
+  const c = new THREE.Color(padCols[i % 4]); pcol.set([c.r, c.g, c.b], i * 3);
+}
+const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(ppos, 3)); pgeo.setAttribute('color', new THREE.BufferAttribute(pcol, 3));
+const parts = new THREE.Points(pgeo, new THREE.PointsMaterial({ size: .07, vertexColors: true, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false }));
+scene.add(parts);
+// synapse lines
+const LN = 160, lgeo = new THREE.BufferGeometry(), lpos = new Float32Array(LN * 6);
+lgeo.setAttribute('position', new THREE.BufferAttribute(lpos, 3));
+const syn = new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({ color: 0x3ff3ff, transparent: true, opacity: .16, blending: THREE.AdditiveBlending }));
+scene.add(syn);
+
+// post-processing: render to target, then a screen-space FX pass driven by the XY pad
+const rt = new THREE.WebGLRenderTarget(2, 2);
+const post = new THREE.ShaderMaterial({
+  uniforms: { tex: { value: rt.texture }, t: { value: 0 }, x: { value: .5 }, y: { value: 0 }, mode: { value: 0 }, res: { value: new THREE.Vector2(1, 1) }, beat: { value: 0 } },
+  vertexShader: 'varying vec2 uv; void main(){ uv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+  fragmentShader: `varying vec2 uv; uniform sampler2D tex; uniform float t, x, y, mode, beat; uniform vec2 res;
+  float h(vec2 q){ return fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453); }
+  void main(){
+    vec2 q = uv;
+    if (mode > .5 && mode < 1.5) { // kaleidoscope: X sets the number of mirror segments
+      vec2 c = q - .5; c.x *= res.x / res.y; float r = length(c), a = atan(c.y, c.x);
+      float seg = 3. + floor(x * 9.), k = 6.28318 / seg; a = mod(a + t * .05, k); a = abs(a - k * .5);
+      vec2 kq = vec2(cos(a), sin(a)) * r; kq.x *= res.y / res.x; q = mix(q, kq + .5, y);
+    }
+    if (mode > 1.5) { // datamosh: blocky displacement on the beat
+      float bs = mix(80., 12., x); vec2 b = floor(q * bs) / bs; float g = step(1. - y * (.35 + beat * .5), h(b + floor(t * 8.)));
+      q.x += (h(b * 3.1) - .5) * .12 * g * y; q.y += (h(b * 7.7) - .5) * .03 * g * y;
+    }
+    float ab = (.002 + y * .012 * (1. + beat)) * (mode < .5 ? 1. + x * 2. : 1.);
+    vec2 dir = (q - .5);
+    vec3 col = vec3(texture2D(tex, q + dir * ab).r, texture2D(tex, q).g, texture2D(tex, q - dir * ab).b);
+    if (mode < .5) { float hue = t * .2 + x * 6.28; col = mix(col, col.gbr, y * .5 * (.5 + .5 * sin(hue + q.y * 6.))); }
+    col += .04 * sin(q.y * res.y * 1.4 + t * 9.) * y;
+    float v = smoothstep(1.15, .35, length(uv - .5)); col *= v;
+    gl_FragColor = vec4(col + beat * vec3(.05, .0, .07), 1.);
+  }`
+});
+const pscene = new THREE.Scene(), pcam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+pscene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
+
+function resize() {
+  const w = cv.clientWidth, h = cv.clientHeight; renderer.setSize(w, h, false);
+  const pr = renderer.getPixelRatio(); rt.setSize(w * pr, h * pr); post.uniforms.res.value.set(w, h);
+  cam.aspect = w / h; cam.position.set(0, 7.2, w < 600 ? 15.5 : 11.8); cam.lookAt(0, 0, 0); cam.updateProjectionMatrix();
+  rig.position.x = w > 900 ? 2.2 : 0; rig.position.y = w > 900 ? -.6 : -1.6;
+}
+addEventListener('resize', resize); resize();
+
+// orbit + pad picking
+let yaw = -.5, pitch = 0, vyaw = reduce ? 0 : .0016, drag = null;
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+function pick(e) {
+  const r = cv.getBoundingClientRect(); mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mouse, cam); const h = ray.intersectObjects(pads)[0]; return h ? h.object : null;
+}
+function trigger(p, v = 1) { p.userData.glow = 1; if (soundOn()) hit(padKind(p.userData.i), ac.currentTime, v); }
+cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: false }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => {
+  if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+  yaw += dx * .006; pitch = Math.max(-.35, Math.min(.5, pitch + dy * .004)); vyaw = dx * .0004; drag.x = e.clientX; drag.y = e.clientY;
+});
+cv.addEventListener('pointerup', e => { if (drag && !drag.moved) { const p = pick(e); if (p) { if (!ac) { initAudio(); audioBtn.click(); } trigger(p); } } drag = null; });
+
+// a pattern plays itself: A1 kick, A2 snare, A3 hat… (MPC order)
+const pat = { 0: [0, 6, 10], 1: [4, 12], 2: [0, 2, 4, 6, 8, 10, 12, 14], 3: [7, 15], 5: [11], 7: [3], 9: [14] };
+let stepT = 0, stepI = 0, beat = 0;
+const stepDur = 60 / 94 / 4;
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000;
+  stepT += dt;
+  if (stepT >= stepDur) {
+    stepT -= stepDur; stepI = (stepI + 1) % 16; roStep.textContent = String(stepI + 1).padStart(2, '0');
+    for (const k in pat) if (pat[k].includes(stepI)) { pads[+k].userData.glow = Math.max(pads[+k].userData.glow, .75); if (soundOn()) hit(padKind(+k), ac.currentTime + .01, .55); if (+k === 0) beat = 1; }
+  }
+  beat *= .9;
+  if (!drag) yaw += vyaw, vyaw += ((reduce ? 0 : .0016) - vyaw) * .02;
+  rig.rotation.y = yaw; rig.rotation.x = pitch * .6;
+  pads.forEach(p => { const g = p.userData.glow; p.material.emissiveIntensity = .12 + g * 1.6; p.position.y = g * .12; p.userData.glow *= .9; });
+  for (let i = 0; i < WN; i++) {
+    const x = (i / (WN - 1) - .5) * 7, env = Math.sin(Math.PI * i / (WN - 1));
+    const y = env * (Math.sin(i * .21 + t * 3) * .35 + Math.sin(i * .53 - t * 5) * .18 * (1 + beat * 2) + Math.sin(i * .05 + t) * .2);
+    wpos.set([x, y, Math.sin(i * .03 + t * .7) * .3], i * 3);
+    const c = new THREE.Color().setHSL((i / WN * .4 + t * .05 + X * .5) % 1, 1, .6); wcol.set([c.r, c.g, c.b], i * 3);
+  }
+  wgeo.attributes.position.needsUpdate = true; wgeo.attributes.color.needsUpdate = true;
+  rings.forEach((r, i) => { r.rotation.z = t * (.1 + i * .05) * (i % 2 ? -1 : 1); r.material.opacity = .35 + .35 * Math.abs(Math.sin(t * .8 + i)) + beat * .2; });
+  for (let i = 0; i < PN; i++) {
+    const s = seeds[i], u = s[0] + t * .03 * (1 + s[3]), v = s[1] + Math.sin(t * .2 + s[3] * 6) * .1, rad = s[2] * (1 + beat * .05 * s[3]);
+    ppos.set([Math.sin(v) * Math.cos(u) * rad, Math.cos(v) * rad * .6 + 1, Math.sin(v) * Math.sin(u) * rad], i * 3);
+  }
+  pgeo.attributes.position.needsUpdate = true; parts.rotation.y = -t * .02;
+  for (let k = 0; k < LN; k++) {
+    const a = (k * 7919 + Math.floor(t * 2) * 31) % PN, b = (a + 1 + (k * 13) % 40) % PN;
+    lpos.set([ppos[a * 3], ppos[a * 3 + 1], ppos[a * 3 + 2], ppos[b * 3], ppos[b * 3 + 1], ppos[b * 3 + 2]], k * 6);
+  }
+  lgeo.attributes.position.needsUpdate = true; syn.rotation.y = parts.rotation.y; syn.material.opacity = .1 + beat * .2;
+  bgMat.uniforms.t.value = t; bgMat.uniforms.y.value = Y;
+  Object.assign(post.uniforms, {}); post.uniforms.t.value = t; post.uniforms.x.value = X; post.uniforms.y.value = Y; post.uniforms.mode.value = fxMode; post.uniforms.beat.value = beat * Y;
+  renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(pscene, pcam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
